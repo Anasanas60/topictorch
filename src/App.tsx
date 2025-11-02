@@ -6,6 +6,7 @@ import { ocrImage } from './lib/ocr';
 import { cleanForSummary } from './lib/clean';
 import { keyPhrases } from './lib/topics';
 import { searchTutorials, youtubeSearchURL, type YTVideo, type SearchOptions } from './lib/youtube';
+import { saveState, loadState, clearState, hasStoredState } from './lib/storage';
 
 type AnswerMap = Record<string, string>;
 type BusyMap = Record<string, boolean>;
@@ -22,6 +23,7 @@ export default function App() {
   const [status, setStatus] = useState('');
   const [progress, setProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Tutorials
   const [videos, setVideos] = useState<YTVideo[]>([]);
@@ -49,6 +51,24 @@ export default function App() {
   const isPdfFile = (f: File) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
   const filenameBase = `${(file?.name?.replace(/\.[^/.]+$/, '') || 'notes').replace(/[^a-z0-9-_]+/gi, '-')}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}`;
 
+  // Load state from localStorage on mount
+  useEffect(() => {
+    const stored = loadState();
+    if (stored.text) setText(stored.text);
+    if (stored.lang) setLang(stored.lang);
+    if (stored.questions) setQuestions(stored.questions);
+    if (stored.answers) setAnswers(stored.answers);
+    if (stored.bookmarks) setBookmarkedTutorials(stored.bookmarks);
+    if (stored.keywords) setKeywords(stored.keywords);
+  }, []);
+
+  // Save state to localStorage when relevant data changes
+  useEffect(() => {
+    if (text || questions.length > 0 || bookmarkedTutorials.length > 0) {
+      saveState({ text, lang, questions, answers, bookmarks: bookmarkedTutorials, keywords });
+    }
+  }, [text, lang, questions, answers, bookmarkedTutorials, keywords]);
+
   useEffect(() => {
     const prevent = (e: DragEvent) => { if (e.dataTransfer?.types?.includes('Files')) e.preventDefault(); };
     window.addEventListener('dragover', prevent);
@@ -71,9 +91,42 @@ export default function App() {
     return bookmarkedTutorials.some(video => video.id === videoId);
   }
 
+  function clearAllData() {
+    if (window.confirm('Are you sure you want to clear all data? This will remove OCR text, questions, answers, and bookmarks.')) {
+      setText('');
+      setQuestions([]);
+      setSelected({});
+      setAnswers({});
+      setBookmarkedTutorials([]);
+      setKeywords([]);
+      setVideos([]);
+      setFile(null);
+      clearState();
+      setQaError(null);
+      setYtError(null);
+    }
+  }
+
+  function getTextStats() {
+    if (!text) return { chars: 0, words: 0, lines: 0 };
+    const chars = text.length;
+    const words = text.trim().split(/\s+/).filter(Boolean).length;
+    const lines = text.split(/\n/).length;
+    return { chars, words, lines };
+  }
+
   function exportQnaDocxClick() {
     const qna = questions.map((q) => ({ question: q, answer: answers[q] || '' }));
     exportQnaDocx({ title: 'QnA from TopicTorch', qna, meta: { date: new Date().toLocaleString() } }, `${filenameBase}-qna`);
+  }
+
+  function getFilteredText(): string {
+    if (!searchQuery.trim()) return text;
+    const lines = text.split('\n');
+    const filtered = lines.filter(line => 
+      line.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    return filtered.length > 0 ? filtered.join('\n') : '(No matches found)';
   }
 
   function buildContext(): string {
@@ -320,6 +373,14 @@ export default function App() {
               <button onClick={handleFindTutorials} disabled={ytLoading || !text} className="main-btn">
                 {ytLoading ? 'Finding…' : 'Find Tutorials'}
               </button>
+              <button 
+                onClick={clearAllData} 
+                disabled={!hasStoredState() && !text && questions.length === 0}
+                className="secondary-btn"
+                title="Clear all data including OCR text, questions, answers, and bookmarks"
+              >
+                Clear All
+              </button>
             </div>
           </div>
         </div>
@@ -361,8 +422,35 @@ export default function App() {
 
         {text && (
           <div className="section">
-            <h2>OCR Text</h2>
-            <pre className="ocr-text">{text}</pre>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 12 }}>
+              <h2 style={{ margin: 0 }}>OCR Text</h2>
+              <div style={{ fontSize: '0.9rem', color: '#9ca3af' }}>
+                {(() => {
+                  const stats = getTextStats();
+                  return `${stats.chars.toLocaleString()} chars · ${stats.words.toLocaleString()} words · ${stats.lines.toLocaleString()} lines`;
+                })()}
+              </div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <input
+                type="text"
+                placeholder="Search in OCR text..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="file-input"
+                style={{ width: '100%', maxWidth: 400 }}
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery('')}
+                  className="secondary-btn"
+                  style={{ marginLeft: 8, padding: '6px 12px' }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <pre className="ocr-text">{getFilteredText()}</pre>
             <button className="secondary-btn" onClick={() => { navigator.clipboard.writeText(text); alert('OCR text copied!'); }}>
               Copy OCR Text
             </button>
