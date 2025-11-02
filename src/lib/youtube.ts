@@ -39,11 +39,23 @@ async function ytSearch(q: string, maxResults = 15) {
     throw new Error(`YouTube search failed with status: ${res.status}`);
   }
   const data = await res.json();
-  return (data.items ?? []) as any[];
+  return (data.items ?? []) as YouTubeSearchItem[];
 }
 
-function dedupeById(items: any[]): any[] {
-  const byId = new Map<string, any>();
+interface YouTubeSearchItem {
+  id: { videoId: string };
+  snippet: {
+    title: string;
+    channelTitle: string;
+    thumbnails?: {
+      default?: { url: string };
+      medium?: { url: string };
+    };
+  };
+}
+
+function dedupeById(items: YouTubeSearchItem[]): YouTubeSearchItem[] {
+  const byId = new Map<string, YouTubeSearchItem>();
   for (const item of items) {
     if (item.id?.videoId && !byId.has(item.id.videoId)) {
       byId.set(item.id.videoId, item);
@@ -52,14 +64,14 @@ function dedupeById(items: any[]): any[] {
   return Array.from(byId.values());
 }
 
-export async function searchTutorials(queries: string[], keywords : string[], opts: SearchOptions = {}): Promise<YTVideo[]> {
+export async function searchTutorials(queries: string[], _keywords : string[], opts: SearchOptions = {}): Promise<YTVideo[]> {
   if (!KEY) throw new Error('YouTube API key is missing.');
   if (!queries || queries.length === 0) return [];
 
   const { maxResults = 12 } = opts;
   console.info('[YT] Using simple search with queries:', queries);
 
-  let allItems: any[] = [];
+  const allItems: YouTubeSearchItem[] = [];
   for (const q of queries) {
     const items = await ytSearch(q);
     allItems.push(...items);
@@ -68,7 +80,7 @@ export async function searchTutorials(queries: string[], keywords : string[], op
   const uniqueItems = dedupeById(allItems);
 
   return uniqueItems
-    .map((item: any) => ({
+    .map((item: YouTubeSearchItem) => ({
       id: item.id.videoId,
       title: item.snippet.title || '',
       channel: item.snippet.channelTitle || '',

@@ -72,7 +72,7 @@ function isReferenceItem(s: string) {
   if (/\bedition\b/i.test(s)) return true;
   // Looks like a title case line with many Caps and few content words
   const words = s.trim().split(/\s+/);
-  const caps = words.filter(w => /^[A-Z][A-Za-z0-9\-]*$/.test(w)).length;
+  const caps = words.filter(w => /^[A-Z][A-Za-z0-9-]*$/.test(w)).length;
   const cont = contentToks(s).length;
   if (caps >= 3 && cont < 6) return true;
   return false;
@@ -88,7 +88,7 @@ function normalizeLine(line: string): string {
 export function cleanForSummary(raw: string): string {
   if (!raw) return '';
   // Normalize bullets globally
-  let text = raw.replace(BULLET_CHARS, '-');
+  const text = raw.replace(BULLET_CHARS, '-');
 
   const lines = text.split(/\r?\n/);
   const keep: string[] = [];

@@ -11,7 +11,20 @@ type QnaRequest = {
   useWeb?: boolean;
 };
 
-export default async function handler(req: any, res: any) {
+interface VercelRequest {
+  method: string;
+  body: unknown;
+}
+
+interface VercelResponse {
+  setHeader(name: string, value: string): void;
+  status(code: number): VercelResponse;
+  send(data: string): void;
+  end(): void;
+  json(data: unknown): void;
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS for dev
   res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -51,7 +64,7 @@ ${context}
           temperature: 0.2,
           maxOutputTokens: 500,
           responseMimeType: 'application/json'
-        } as any
+        }
       });
 
       let queries: string[] = [];
@@ -83,7 +96,7 @@ ${context}
           temperature: 0.3,
           maxOutputTokens: 800,
           responseMimeType: 'application/json'
-        } as any
+        }
       });
 
       let qs: string[] = [];
@@ -113,7 +126,7 @@ ${context}
 
       const result = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: sys }] }, { role: 'user', parts: [{ text: user }] }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 700 } as any
+        generationConfig: { temperature: 0.2, maxOutputTokens: 700 }
       });
 
       const answer = result.response.text() || 'No answer.';
@@ -121,8 +134,9 @@ ${context}
     }
 
     return res.status(400).send('Unknown action');
-  } catch (e: any) {
-    console.error('[qna] error:', e?.message || e);
-    return res.status(500).send(e?.message || 'Server error');
+  } catch (e) {
+    const error = e as Error;
+    console.error('[qna] error:', error?.message || e);
+    return res.status(500).send(error?.message || 'Server error');
   }
 }

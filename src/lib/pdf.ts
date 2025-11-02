@@ -1,6 +1,4 @@
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from 'pdfjs-dist';
-// PDF.js types
-type TextContent = { items: Array<{ str: string }> };
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // Vite/ESM worker setup
@@ -38,8 +36,8 @@ export async function isDigitalPdf(pdf: PDFDocumentProxy, samplePages = 2): Prom
   for (let i = 1; i <= take; i++) {
     const page = await pdf.getPage(i);
     const tc = await page.getTextContent();
-    // Only count items with a 'str' property
-    const chars = tc.items.reduce((acc: number, it: any) => acc + (typeof it.str === 'string' ? it.str.length : 0), 0);
+    // Only count items with a 'str' property - use type assertion for pdfjs items
+    const chars = (tc.items as Array<{ str?: string }>).reduce((acc: number, it) => acc + (typeof it.str === 'string' ? it.str.length : 0), 0);
     page.cleanup?.();
     if (chars > 50) return true;
   }
@@ -72,8 +70,8 @@ export async function extractPdfText(
   for (const p of pages) {
     const page = await pdf.getPage(p);
   const tc = await page.getTextContent();
-  // Only extract items with a 'str' property
-  const text = (tc.items as any[]).map((it) => typeof it.str === 'string' ? it.str : '').join(' ');
+  // Only extract items with a 'str' property - use type assertion for pdfjs items
+  const text = (tc.items as Array<{ str?: string }>).map((it) => typeof it.str === 'string' ? it.str : '').join(' ');
   chunks.push(text.trim());
     page.cleanup?.();
     done++; onProgress?.(done, pages.length);

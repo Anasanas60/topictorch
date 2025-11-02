@@ -10,6 +10,6 @@ export async function ocrImage(
   });
   return {
     text: data.text ?? '',
-    avgConfidence: (data as any).confidence ?? null,
+    avgConfidence: (data as { confidence?: number }).confidence ?? null,
   };
 }

@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import './app.css';
+import './App.css';
 import { exportQnaDocx } from './lib/exportDocx';
 
 import { ocrImage } from './lib/ocr';
 import { cleanForSummary } from './lib/clean';
 import { keyPhrases } from './lib/topics';
 import { searchTutorials, youtubeSearchURL, type YTVideo, type SearchOptions } from './lib/youtube';
-import { saveFile } from './lib/save';
 
 type AnswerMap = Record<string, string>;
 type BusyMap = Record<string, boolean>;
@@ -589,22 +588,4 @@ function formatAnswerToHTML(ans: string): string {
   }
   flush();
   return out.join('\n').replace(/\s+/g, ' ').replace(/>\s+</g, '><');
-}
-
-function highlightKeyPhrases(txt: string, phrases: string[]): string {
-  if (!phrases || phrases.length === 0) return escapeHtml(txt);
-  const sorted = [...phrases].sort((a, b) => b.length - a.length);
-  let html = escapeHtml(txt);
-  for (const kw of sorted) {
-    const re = new RegExp(`(${escapeRegExp(kw)})`, 'gi');
-    html = html.replace(re, '<span class="keyword-chip">$1</span>');
-  }
-  return html;
-}
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
-}
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 }

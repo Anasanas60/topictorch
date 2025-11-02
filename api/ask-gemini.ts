@@ -34,7 +34,20 @@ function topKParas(question: string, context: string, k = 3) {
     .map(x => x.p);
 }
 
-export default async function handler(req: any, res: any) {
+interface VercelRequest {
+  method: string;
+  body: unknown;
+}
+
+interface VercelResponse {
+  setHeader(name: string, value: string): void;
+  status(code: number): VercelResponse;
+  send(data: string): void;
+  end(): void;
+  json(data: unknown): void;
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS for dev
   res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -80,8 +93,9 @@ Answer:`;
 
     const answer = result.response.text();
     return res.status(200).json({ answer });
-  } catch (e: any) {
-    console.error('[ask-gemini] error:', e?.message || e);
-    return res.status(500).send(e?.message || 'Server error');
+  } catch (e) {
+    const error = e as Error;
+    console.error('[ask-gemini] error:', error?.message || e);
+    return res.status(500).send(error?.message || 'Server error');
   }
 }
