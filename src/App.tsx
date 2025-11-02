@@ -7,6 +7,7 @@ import { cleanForSummary } from './lib/clean';
 import { keyPhrases } from './lib/topics';
 import { searchTutorials, youtubeSearchURL, type YTVideo, type SearchOptions } from './lib/youtube';
 import { saveState, loadState, clearState, hasStoredState } from './lib/storage';
+import { loadTheme, saveTheme, applyTheme, type Theme } from './lib/theme';
 
 type AnswerMap = Record<string, string>;
 type BusyMap = Record<string, boolean>;
@@ -24,6 +25,7 @@ export default function App() {
   const [progress, setProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [theme, setTheme] = useState<Theme>('light');
 
   // Tutorials
   const [videos, setVideos] = useState<YTVideo[]>([]);
@@ -50,6 +52,13 @@ export default function App() {
 
   const isPdfFile = (f: File) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
   const filenameBase = `${(file?.name?.replace(/\.[^/.]+$/, '') || 'notes').replace(/[^a-z0-9-_]+/gi, '-')}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}`;
+
+  // Load and apply theme on mount
+  useEffect(() => {
+    const savedTheme = loadTheme();
+    setTheme(savedTheme);
+    applyTheme(savedTheme);
+  }, []);
 
   // Load state from localStorage on mount
   useEffect(() => {
@@ -78,6 +87,13 @@ export default function App() {
       window.removeEventListener('drop', prevent);
     };
   }, []);
+
+  function toggleTheme() {
+    const newTheme: Theme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    saveTheme(newTheme);
+    applyTheme(newTheme);
+  }
 
   function addBookmark(videoToAdd: YTVideo) {
     if (!bookmarkedTutorials.some(video => video.id === videoToAdd.id)) {
@@ -310,10 +326,22 @@ export default function App() {
   return (
     <div className="cool-bg">
       <div className="glass-card">
-        <h1 className="title">TopicTorch 🔥</h1>
-        <p className="subtitle strong">
-          Scan notes, run QnA (generate + answer), and export your study pack — all on your device.
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div>
+            <h1 className="title" style={{ marginBottom: 4 }}>TopicTorch 🔥</h1>
+            <p className="subtitle strong" style={{ margin: 0 }}>
+              Scan notes, run QnA (generate + answer), and export your study pack — all on your device.
+            </p>
+          </div>
+          <button 
+            onClick={toggleTheme}
+            className="secondary-btn"
+            style={{ padding: '8px 16px', fontSize: '1.2rem' }}
+            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          >
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
+        </div>
 
         <div className="toolbar">
           <div className="control">
