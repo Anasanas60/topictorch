@@ -21,8 +21,7 @@ export interface StoredState {
 
 export function saveState(state: Partial<StoredState>): void {
   try {
-    const existing = loadState();
-    const merged = { ...existing, ...state, timestamp: Date.now() };
+    const merged = { ...state, timestamp: Date.now() };
     localStorage.setItem(STORAGE_PREFIX + 'state', JSON.stringify(merged));
   } catch (error) {
     console.warn('Failed to save state to localStorage:', error);

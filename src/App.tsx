@@ -71,10 +71,14 @@ export default function App() {
     if (stored.keywords) setKeywords(stored.keywords);
   }, []);
 
-  // Save state to localStorage when relevant data changes
+  // Save state to localStorage when relevant data changes (debounced)
   useEffect(() => {
     if (text || questions.length > 0 || bookmarkedTutorials.length > 0) {
-      saveState({ text, lang, questions, answers, bookmarks: bookmarkedTutorials, keywords });
+      const timeoutId = setTimeout(() => {
+        saveState({ text, lang, questions, answers, bookmarks: bookmarkedTutorials, keywords });
+      }, 1000); // Debounce for 1 second
+      
+      return () => clearTimeout(timeoutId);
     }
   }, [text, lang, questions, answers, bookmarkedTutorials, keywords]);
 
