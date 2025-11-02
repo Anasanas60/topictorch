@@ -18,7 +18,12 @@ This project was built to be fast, private, and free to use. All OCR and file pr
 *   ✨ **Interactive UI:**
     *   **Bookmark Tutorials:** Save your favorite videos to a personal "My Saved Tutorials" list.
     *   **Language Options:** Supports both English and Bengali OCR, and allows users to select their preferred language for tutorial results.
+    *   **Dark/Light Mode:** Toggle between themes with automatic persistence.
+    *   **Search & Filter:** Search within your OCR text to quickly find specific content.
+    *   **Text Statistics:** View character, word, and line counts for your extracted text.
+*   💾 **Auto-Save & Persistence:** Your OCR text, questions, answers, and bookmarks are automatically saved and restored when you return.
 *   📤 **Export Your Study Pack:** Download your full Q&A session as a professionally formatted `.docx` file for offline study.
+*   🧹 **Clear All:** Reset your session with a single click (with confirmation to prevent accidents).
 
 ## Tech Stack
 
@@ -88,6 +93,20 @@ To get a local copy up and running, follow these simple steps.
         *(This will run your UI at `http://localhost:5173`)*
 
 5.  **Open the app:** Go to `http://localhost:5173` in your browser. The app is configured to automatically call the backend on port 3000.
+
+## What's New 🎉
+
+**Latest Updates (v1.1.0):**
+*   🎨 **Dark/Light Mode:** Toggle between themes with a single click. Your preference is saved automatically.
+*   💾 **Auto-Save:** All your work (OCR text, Q&A, bookmarks) is automatically saved and restored.
+*   🔍 **Search Feature:** Quickly find specific content within your OCR text.
+*   📊 **Text Statistics:** See character, word, and line counts for your extracted text.
+*   🧹 **Clear All Button:** Reset your session with confirmation to prevent accidents.
+*   🚀 **Better Error Messages:** Get actionable suggestions when things go wrong.
+*   ⚡ **Performance:** Optimized auto-save with debouncing for better performance.
+*   🔒 **Security:** CodeQL scanned with 0 vulnerabilities.
+
+For a complete list of features and improvements, see [FEATURES.md](FEATURES.md).
 
 ## Contact
 

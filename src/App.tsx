@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import './app.css';
+import './App.css';
 import { exportQnaDocx } from './lib/exportDocx';
 
 import { ocrImage } from './lib/ocr';
 import { cleanForSummary } from './lib/clean';
 import { keyPhrases } from './lib/topics';
 import { searchTutorials, youtubeSearchURL, type YTVideo, type SearchOptions } from './lib/youtube';
-import { saveFile } from './lib/save';
+import { saveState, loadState, clearState, hasStoredState } from './lib/storage';
+import { loadTheme, saveTheme, applyTheme, type Theme } from './lib/theme';
 
 type AnswerMap = Record<string, string>;
 type BusyMap = Record<string, boolean>;
@@ -23,6 +24,8 @@ export default function App() {
   const [status, setStatus] = useState('');
   const [progress, setProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [theme, setTheme] = useState<Theme>('light');
 
   // Tutorials
   const [videos, setVideos] = useState<YTVideo[]>([]);
@@ -50,6 +53,35 @@ export default function App() {
   const isPdfFile = (f: File) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
   const filenameBase = `${(file?.name?.replace(/\.[^/.]+$/, '') || 'notes').replace(/[^a-z0-9-_]+/gi, '-')}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}`;
 
+  // Load and apply theme on mount
+  useEffect(() => {
+    const savedTheme = loadTheme();
+    setTheme(savedTheme);
+    applyTheme(savedTheme);
+  }, []);
+
+  // Load state from localStorage on mount
+  useEffect(() => {
+    const stored = loadState();
+    if (stored.text) setText(stored.text);
+    if (stored.lang) setLang(stored.lang);
+    if (stored.questions) setQuestions(stored.questions);
+    if (stored.answers) setAnswers(stored.answers);
+    if (stored.bookmarks) setBookmarkedTutorials(stored.bookmarks);
+    if (stored.keywords) setKeywords(stored.keywords);
+  }, []);
+
+  // Save state to localStorage when relevant data changes (debounced)
+  useEffect(() => {
+    if (text || questions.length > 0 || bookmarkedTutorials.length > 0) {
+      const timeoutId = setTimeout(() => {
+        saveState({ text, lang, questions, answers, bookmarks: bookmarkedTutorials, keywords });
+      }, 1000); // Debounce for 1 second
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [text, lang, questions, answers, bookmarkedTutorials, keywords]);
+
   useEffect(() => {
     const prevent = (e: DragEvent) => { if (e.dataTransfer?.types?.includes('Files')) e.preventDefault(); };
     window.addEventListener('dragover', prevent);
@@ -59,6 +91,13 @@ export default function App() {
       window.removeEventListener('drop', prevent);
     };
   }, []);
+
+  function toggleTheme() {
+    const newTheme: Theme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    saveTheme(newTheme);
+    applyTheme(newTheme);
+  }
 
   function addBookmark(videoToAdd: YTVideo) {
     if (!bookmarkedTutorials.some(video => video.id === videoToAdd.id)) {
@@ -72,9 +111,66 @@ export default function App() {
     return bookmarkedTutorials.some(video => video.id === videoId);
   }
 
+  function clearAllData() {
+    if (window.confirm('Are you sure you want to clear all data? This will remove OCR text, questions, answers, and bookmarks.')) {
+      setText('');
+      setQuestions([]);
+      setSelected({});
+      setAnswers({});
+      setBookmarkedTutorials([]);
+      setKeywords([]);
+      setVideos([]);
+      setFile(null);
+      clearState();
+      setQaError(null);
+      setYtError(null);
+    }
+  }
+
+  function getTextStats() {
+    if (!text) return { chars: 0, words: 0, lines: 0 };
+    const chars = text.length;
+    const words = text.trim().split(/\s+/).filter(Boolean).length;
+    const lines = text.split(/\n/).length;
+    return { chars, words, lines };
+  }
+
   function exportQnaDocxClick() {
     const qna = questions.map((q) => ({ question: q, answer: answers[q] || '' }));
     exportQnaDocx({ title: 'QnA from TopicTorch', qna, meta: { date: new Date().toLocaleString() } }, `${filenameBase}-qna`);
+  }
+
+  function getFilteredText(): string {
+    if (!searchQuery.trim()) return text;
+    const lines = text.split('\n');
+    const filtered = lines.filter(line => 
+      line.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    return filtered.length > 0 ? filtered.join('\n') : '(No matches found)';
+  }
+
+  function getErrorMessage(error: unknown, context: string): string {
+    const err = error as Error;
+    const message = err.message || 'An unknown error occurred';
+    
+    // Provide actionable suggestions based on error type
+    if (message.includes('fetch') || message.includes('network')) {
+      return `Network error: Unable to connect to the server. Please check your internet connection and try again.`;
+    }
+    if (message.includes('API key') || message.includes('GEMINI_API_KEY')) {
+      return `API key error: The Gemini API key is missing or invalid. Please check your environment configuration.`;
+    }
+    if (message.includes('YouTube') || message.includes('VITE_YT_API_KEY')) {
+      return `YouTube API error: Unable to search for tutorials. Please verify your YouTube API key is correctly configured.`;
+    }
+    if (message.includes('quota')) {
+      return `API quota exceeded: You've reached the daily limit for API requests. Please try again tomorrow or upgrade your API plan.`;
+    }
+    if (message.includes('timeout')) {
+      return `Request timeout: The operation took too long. Please try again with a smaller file or fewer pages.`;
+    }
+    
+    return `${context}: ${message}`;
   }
 
   function buildContext(): string {
@@ -148,7 +244,8 @@ export default function App() {
       const kp = keyPhrases(cleaned, 12);
       setKeywords(kp);
     } catch (e) {
-      alert((e as Error).message);
+      const errorMsg = getErrorMessage(e, 'OCR failed');
+      alert(errorMsg);
     } finally {
       setLoading(false);
       setStatus('');
@@ -177,7 +274,7 @@ export default function App() {
       const vids = await searchTutorials(queries, keywords, { langPref: ytLang, ocrLang: lang });
       setVideos(vids);
     } catch (e) {
-      setYtError((e as Error).message || 'Failed to find tutorials.');
+      setYtError(getErrorMessage(e, 'Failed to find tutorials'));
     } finally {
       setYtLoading(false);
       setStatus('');
@@ -204,7 +301,7 @@ export default function App() {
       setSelected(sel);
       setAnswers({});
     } catch (e) {
-      setQaError((e as Error).message || 'Failed to generate questions');
+      setQaError(getErrorMessage(e, 'Failed to generate questions'));
     } finally {
       setGenLoading(false);
     }
@@ -224,7 +321,7 @@ export default function App() {
       const data = await res.json() as { answer: string };
       setAnswers(prev => ({ ...prev, [q]: data.answer || 'No answer.' }));
     } catch (e) {
-      setQaError((e as Error).message || 'Failed to answer question');
+      setQaError(getErrorMessage(e, 'Failed to answer question'));
     } finally {
       setAnswerBusy(prev => ({ ...prev, [q]: false }));
     }
@@ -258,10 +355,22 @@ export default function App() {
   return (
     <div className="cool-bg">
       <div className="glass-card">
-        <h1 className="title">TopicTorch 🔥</h1>
-        <p className="subtitle strong">
-          Scan notes, run QnA (generate + answer), and export your study pack — all on your device.
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div>
+            <h1 className="title" style={{ marginBottom: 4 }}>TopicTorch 🔥</h1>
+            <p className="subtitle strong" style={{ margin: 0 }}>
+              Scan notes, run QnA (generate + answer), and export your study pack — all on your device.
+            </p>
+          </div>
+          <button 
+            onClick={toggleTheme}
+            className="secondary-btn"
+            style={{ padding: '8px 16px', fontSize: '1.2rem' }}
+            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          >
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
+        </div>
 
         <div className="toolbar">
           <div className="control">
@@ -321,6 +430,14 @@ export default function App() {
               <button onClick={handleFindTutorials} disabled={ytLoading || !text} className="main-btn">
                 {ytLoading ? 'Finding…' : 'Find Tutorials'}
               </button>
+              <button 
+                onClick={clearAllData} 
+                disabled={!hasStoredState() && !text && questions.length === 0}
+                className="secondary-btn"
+                title="Clear all data including OCR text, questions, answers, and bookmarks"
+              >
+                Clear All
+              </button>
             </div>
           </div>
         </div>
@@ -362,8 +479,35 @@ export default function App() {
 
         {text && (
           <div className="section">
-            <h2>OCR Text</h2>
-            <pre className="ocr-text">{text}</pre>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 12 }}>
+              <h2 style={{ margin: 0 }}>OCR Text</h2>
+              <div style={{ fontSize: '0.9rem', color: '#9ca3af' }}>
+                {(() => {
+                  const stats = getTextStats();
+                  return `${stats.chars.toLocaleString()} chars · ${stats.words.toLocaleString()} words · ${stats.lines.toLocaleString()} lines`;
+                })()}
+              </div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <input
+                type="text"
+                placeholder="Search in OCR text..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="file-input"
+                style={{ width: '100%', maxWidth: 400 }}
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery('')}
+                  className="secondary-btn"
+                  style={{ marginLeft: 8, padding: '6px 12px' }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <pre className="ocr-text">{getFilteredText()}</pre>
             <button className="secondary-btn" onClick={() => { navigator.clipboard.writeText(text); alert('OCR text copied!'); }}>
               Copy OCR Text
             </button>
@@ -589,22 +733,4 @@ function formatAnswerToHTML(ans: string): string {
   }
   flush();
   return out.join('\n').replace(/\s+/g, ' ').replace(/>\s+</g, '><');
-}
-
-function highlightKeyPhrases(txt: string, phrases: string[]): string {
-  if (!phrases || phrases.length === 0) return escapeHtml(txt);
-  const sorted = [...phrases].sort((a, b) => b.length - a.length);
-  let html = escapeHtml(txt);
-  for (const kw of sorted) {
-    const re = new RegExp(`(${escapeRegExp(kw)})`, 'gi');
-    html = html.replace(re, '<span class="keyword-chip">$1</span>');
-  }
-  return html;
-}
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
-}
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 }

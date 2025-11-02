@@ -48,6 +48,6 @@ export function saveMarkdownNote(params: Parameters<typeof buildMarkdown>[0], ba
   saveFile(`${base}.md`, md, 'text/markdown;charset=utf-8');
 }
 
-export function saveJSONNote(data: any, base: string) {
+export function saveJSONNote(data: Record<string, unknown>, base: string) {
   saveFile(`${base}.json`, JSON.stringify(data, null, 2), 'application/json');
 }
