@@ -145,6 +145,30 @@ export default function App() {
     return filtered.length > 0 ? filtered.join('\n') : '(No matches found)';
   }
 
+  function getErrorMessage(error: unknown, context: string): string {
+    const err = error as Error;
+    const message = err.message || 'An unknown error occurred';
+    
+    // Provide actionable suggestions based on error type
+    if (message.includes('fetch') || message.includes('network')) {
+      return `Network error: Unable to connect to the server. Please check your internet connection and try again.`;
+    }
+    if (message.includes('API key') || message.includes('GEMINI_API_KEY')) {
+      return `API key error: The Gemini API key is missing or invalid. Please check your environment configuration.`;
+    }
+    if (message.includes('YouTube') || message.includes('VITE_YT_API_KEY')) {
+      return `YouTube API error: Unable to search for tutorials. Please verify your YouTube API key is correctly configured.`;
+    }
+    if (message.includes('quota')) {
+      return `API quota exceeded: You've reached the daily limit for API requests. Please try again tomorrow or upgrade your API plan.`;
+    }
+    if (message.includes('timeout')) {
+      return `Request timeout: The operation took too long. Please try again with a smaller file or fewer pages.`;
+    }
+    
+    return `${context}: ${message}`;
+  }
+
   function buildContext(): string {
     return cleanForSummary(text || '').slice(0, 12000);
   }
@@ -216,7 +240,8 @@ export default function App() {
       const kp = keyPhrases(cleaned, 12);
       setKeywords(kp);
     } catch (e) {
-      alert((e as Error).message);
+      const errorMsg = getErrorMessage(e, 'OCR failed');
+      alert(errorMsg);
     } finally {
       setLoading(false);
       setStatus('');
@@ -245,7 +270,7 @@ export default function App() {
       const vids = await searchTutorials(queries, keywords, { langPref: ytLang, ocrLang: lang });
       setVideos(vids);
     } catch (e) {
-      setYtError((e as Error).message || 'Failed to find tutorials.');
+      setYtError(getErrorMessage(e, 'Failed to find tutorials'));
     } finally {
       setYtLoading(false);
       setStatus('');
@@ -272,7 +297,7 @@ export default function App() {
       setSelected(sel);
       setAnswers({});
     } catch (e) {
-      setQaError((e as Error).message || 'Failed to generate questions');
+      setQaError(getErrorMessage(e, 'Failed to generate questions'));
     } finally {
       setGenLoading(false);
     }
@@ -292,7 +317,7 @@ export default function App() {
       const data = await res.json() as { answer: string };
       setAnswers(prev => ({ ...prev, [q]: data.answer || 'No answer.' }));
     } catch (e) {
-      setQaError((e as Error).message || 'Failed to answer question');
+      setQaError(getErrorMessage(e, 'Failed to answer question'));
     } finally {
       setAnswerBusy(prev => ({ ...prev, [q]: false }));
     }
